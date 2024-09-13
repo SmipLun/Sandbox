@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Service Desk TV</title>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', Arial, sans-serif;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #2e2e2e;
+            color: #ffffff;
+        }
+
+        .container {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 20px;
+            width: 90vw;
+            height: 90vh;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        /* Banner */
+        #banner {
+            grid-column: span 2;
+            text-align: center;
+        }
+
+        /* Image Viewer for PowerPoint Slides */
+        #imageViewer {
+            grid-row: 2;
+            grid-column: 1;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            aspect-ratio: 16 / 9;
+            width: 100%;
+            max-height: 50vh;
+        }
+
+        #imageViewer img {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* Right-side sections */
+        .right-content {
+            grid-row: 2;
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        .section {
+            background-color: #1a1a1a;
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section-title {
+            background-color: #132B5B;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        /* Text overflow, 2-column limit */
+        .scroll-container {
+            column-count: 2;
+            column-gap: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+            max-height: calc(100% - 40px);
+            font-size: 1.2em;
+        }
+
+        @media (max-width: 600px) {
+            .scroll-container {
+                font-size: 0.8em;
+            }
+        }
+
+        .quill-editor {
+            height: 200px;
+            display: none;
+        }
+
+        #editButton {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background-color: #0f233a;
+            border: none;
+            cursor: pointer;
+            color: white;
+        }
+
+        #saveButton {
+            position: fixed;
+            top: 50px;
+            right: 10px;
+            padding: 10px;
+            background-color: #00cc00;
+            border: none;
+            cursor: pointer;
+            display: none;
+        }
+
+        #speedControl {
+            display: none;
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+        }
+
+        #speedControl input {
+            width: 40px;
+            text-align: center;
+        }
+
+        .ql-toolbar {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="banner">
+            <img src="ServiceDesk.jpg" alt="Service Desk Banner" style="max-width: 100%; height: auto;">
+        </div>
+
+        <!-- Image Viewer for PowerPoint Slides -->
+        <div id="imageViewer"></div>
+
+        <!-- Right-side sections -->
+        <div class="right-content">
+            <div class="section">
+                <div class="section-title">Who's Out</div>
+                <div id="whoIsOut" class="scroll-container">No data available</div>
+                <div id="whoIsOutEditor" class="quill-editor"></div>
+            </div>
+            <div class="section">
+                <div class="section-title">Master Incidents</div>
+                <div id="masterIncidents" class="scroll-container">No data available</div>
+                <div id="masterIncidentsEditor" class="quill-editor"></div>
+            </div>
+        </div>
+    </div>
+
+    <button id="editButton" onclick="toggleEditMode()">Edit Mode</button>
+    <button id="saveButton" onclick="exitAndSave()">Save & Download</button>
+
+    <div id="speedControl">
+        <label>Slide Interval (seconds):</label>
+        <button onclick="adjustSpeed(-1)">-</button>
+        <input type="number" id="slideSpeed" value="30" min="1">
+        <button onclick="adjustSpeed(1)">+</button>
+    </div>
+
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script>
+        let isEditMode = false;
+        let slideIndex = 0;
+        let slideSpeed = 30000; // 30 seconds default
+        let slideInterval;
+        let totalSlides = 0;
+
+        let whoIsOutEditor = new Quill('#whoIsOutEditor', { theme: 'snow' });
+        let masterIncidentsEditor = new Quill('#masterIncidentsEditor', { theme: 'snow' });
+
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            document.getElementById('whoIsOut').style.display = isEditMode ? 'none' : 'block';
+            document.getElementById('whoIsOutEditor').style.display = isEditMode ? 'block' : 'none';
+            document.getElementById('masterIncidents').style.display = isEditMode ? 'none' : 'block';
+            document.getElementById('masterIncidentsEditor').style.display = isEditMode ? 'block' : 'none';
+            document.getElementById('editButton').innerText = isEditMode ? 'Exit Edit Mode' : 'Edit Mode';
+            document.getElementById('saveButton').style.display = isEditMode ? 'block' : 'none';
+            document.getElementById('speedControl').style.display = isEditMode ? 'block' : 'none';
+
+            const toolbars = document.querySelectorAll('.ql-toolbar');
+            toolbars.forEach(toolbar => {
+                toolbar.style.display = isEditMode ? 'block' : 'none';
+            });
+
+            if (!isEditMode) {
+                saveContent();
+            }
+        }
+
+        function saveContent() {
+            const whoIsOutContent = whoIsOutEditor.root.innerHTML;
+            const masterIncidentsContent = masterIncidentsEditor.root.innerHTML;
+
+            document.getElementById('whoIsOut').innerHTML = whoIsOutContent;
+            document.getElementById('masterIncidents').innerHTML = masterIncidentsContent;
+        }
+
+        function exitAndSave() {
+            if (isEditMode) {
+                toggleEditMode(); // Exit edit mode before saving
+            }
+            removeQuillInstances();
+            saveUpdatedHTML();
+        }
+
+        function removeQuillInstances() {
+            whoIsOutEditor = null;
+            masterIncidentsEditor = null;
+
+            const toolbars = document.querySelectorAll('.ql-toolbar');
+            toolbars.forEach(toolbar => {
+                toolbar.remove();
+            });
+
+            const editors = document.querySelectorAll('.ql-container');
+            editors.forEach(editor => {
+                editor.classList.remove('ql-container');
+            });
+        }
+
+        function saveUpdatedHTML() {
+            const slideSpeedInput = document.getElementById('slideSpeed').value;
+            const slideSpeedValue = slideSpeedInput * 1000;
+            document.querySelector('input#slideSpeed').setAttribute('value', slideSpeedInput);
+
+            const updatedHTML = document.documentElement.outerHTML;
+            const blob = new Blob([updatedHTML], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'SDTV.html';
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function loadSlides() {
+            const slidesFolder = 'SDTV Slides';
+            const slideImages = [];
+            let slideNumber = 1;
+
+            // Correct loop assuming slides exist in sequential order until one is missing
+while (true) {
+    const imagePath = `${slidesFolder}/Slide${slideNumber}.jpg`;
+
+    // Create a temporary image to check if the slide exists
+    const image = new Image();
+    image.src = imagePath;
+
+    // Try to load the image and check if it exists
+    if (image.complete && image.naturalHeight !== 0) {
+        slideImages.push(imagePath); // Add the image if it exists
+    } else {
+        break; // Stop if the image doesn't exist
+    }
+
+    slideNumber++;
+}
+
+            totalSlides = slideImages.length;
+            const viewer = document.getElementById('imageViewer');
+
+            function showNextSlide() {
+                viewer.innerHTML = '';
+                viewer.appendChild(slideImages[slideIndex]);
+
+                if (slideIndex === totalSlides - 1) {
+                    setTimeout(() => {
+                        slideIndex = 0;
+                        if (!isEditMode) location.reload();
+                    }, slideSpeed);
+                } else {
+                    slideIndex++;
+                }
+            }
+
+            slideInterval = setInterval(showNextSlide, slideSpeed);
+            showNextSlide();
+        }
+
+        function adjustSpeed(delta) {
+            let newSpeed = parseInt(document.getElementById('slideSpeed').value) + delta;
+            newSpeed = Math.max(newSpeed, 1);
+            document.getElementById('slideSpeed').value = newSpeed;
+            slideSpeed = newSpeed * 1000;
+            clearInterval(slideInterval);
+            slideInterval = setInterval(loadSlides, slideSpeed);
+        }
+
+        window.onload = function() {
+            slideIndex = 0;
+            const savedSlideSpeed = document.getElementById('slideSpeed').value * 1000;
+            slideSpeed = savedSlideSpeed || 30000;
+            loadSlides();
+
+            const toolbars = document.querySelectorAll('.ql-toolbar');
+            toolbars.forEach(toolbar => {
+                toolbar.style.display = 'none';
+            });
+        };
+    </script>
+
+</body>
+
+</html>
